@@ -14,7 +14,6 @@ export type SlimWallet = {
   elemental: number;
   carrot: number;
   referralBonus: number;
-  referralCount: number | null;
 };
 
 const PAGE_SIZE = 50;
@@ -29,7 +28,7 @@ type VenueKey =
   | "carrot"
   | "referralBonus";
 
-type SortKey = "rank" | "address" | "totalPoints" | VenueKey | "referralCount";
+type SortKey = "rank" | "address" | "totalPoints" | VenueKey;
 
 const VENUE_COLS: { key: VenueKey; label: string }[] = [
   { key: "wallet", label: "Wallet" },
@@ -83,12 +82,8 @@ export function WalletsTable({ wallets, totalPoints }: { wallets: SlimWallet[]; 
     const arr = [...filtered];
     const k = sort.key;
     arr.sort((a, b) => {
-      const av = (a as unknown as Record<string, number | string | null>)[k];
-      const bv = (b as unknown as Record<string, number | string | null>)[k];
-      // Null sorts to the end regardless of direction (used for referralCount).
-      if (av == null && bv == null) return 0;
-      if (av == null) return 1;
-      if (bv == null) return -1;
+      const av = (a as unknown as Record<string, number | string>)[k];
+      const bv = (b as unknown as Record<string, number | string>)[k];
       const cmp = typeof av === "number" && typeof bv === "number" ? av - bv : String(av).localeCompare(String(bv));
       return sort.dir === "asc" ? cmp : -cmp;
     });
@@ -139,7 +134,7 @@ export function WalletsTable({ wallets, totalPoints }: { wallets: SlimWallet[]; 
       </div>
 
       <div className="overflow-x-auto">
-        <table className="w-full text-[13px] min-w-[1200px]">
+        <table className="w-full text-[13px] min-w-[1100px]">
           <thead>
             <tr className="text-[var(--muted)]">
               <SortableTh k="rank" label="#" />
@@ -160,23 +155,12 @@ export function WalletsTable({ wallets, totalPoints }: { wallets: SlimWallet[]; 
                   </span>
                 </th>
               ))}
-              <th
-                onClick={() => setSortKey("referralCount")}
-                className="font-medium pb-2 cursor-pointer select-none hover:text-[var(--foreground)] text-right"
-              >
-                <span className="inline-flex items-center gap-1">
-                  # Refs
-                  <span className={sort.key === "referralCount" ? "text-[var(--accent)]" : "text-[var(--muted-2)]"}>
-                    {sort.key !== "referralCount" ? "↕" : sort.dir === "asc" ? "↑" : "↓"}
-                  </span>
-                </span>
-              </th>
             </tr>
           </thead>
           <tbody>
             {slice.length === 0 && (
               <tr>
-                <td colSpan={13} className="py-6 text-center text-[var(--muted)]">
+                <td colSpan={12} className="py-6 text-center text-[var(--muted)]">
                   No wallets match.
                 </td>
               </tr>
@@ -219,9 +203,6 @@ export function WalletsTable({ wallets, totalPoints }: { wallets: SlimWallet[]; 
                       {fmtNum(w[v.key])}
                     </td>
                   ))}
-                  <td className="py-2 text-right numeric text-[var(--muted)]">
-                    {w.referralCount == null ? "—" : w.referralCount.toLocaleString()}
-                  </td>
                 </tr>
               );
             })}

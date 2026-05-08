@@ -13,7 +13,6 @@ import {
   getFullLeaderboard,
   getOverview,
   getPointsGrowth,
-  getReferralCountsByAddress,
   pivotAumByDate,
   tierBreakdown,
   TIER_COLORS,
@@ -58,21 +57,6 @@ export default async function Home() {
     return 0;
   };
 
-  // Only ask the referrals endpoint about wallets that actually earned referral
-  // bonus, and cap to the top 200 by bonus to stay inside the Vercel function
-  // timeout on cold cache. Each fetch is cached for an hour, so the long tail
-  // populates over time as the cache warms.
-  const referrerAddrs = leaderboard
-    .filter((r) => sumLeaves((r.pointsBreakdown ?? {}).referralBonus) > 0)
-    .sort(
-      (a, b) =>
-        sumLeaves((b.pointsBreakdown ?? {}).referralBonus) -
-        sumLeaves((a.pointsBreakdown ?? {}).referralBonus),
-    )
-    .slice(0, 60)
-    .map((r) => r.address);
-  const refCounts = await getReferralCountsByAddress(referrerAddrs);
-
   const slimWallets: SlimWallet[] = leaderboard.map((r) => {
     const b = r.pointsBreakdown ?? {};
     return {
@@ -87,7 +71,6 @@ export default async function Home() {
       elemental: sumLeaves(b.elemental),
       carrot: sumLeaves(b.carrot),
       referralBonus: sumLeaves(b.referralBonus),
-      referralCount: refCounts.get(r.address) ?? null,
     };
   });
 
