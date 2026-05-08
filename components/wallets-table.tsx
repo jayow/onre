@@ -186,7 +186,7 @@ export function WalletsTable({ wallets, totalPoints }: { wallets: SlimWallet[]; 
                   <td className="py-2 font-mono text-[12px]">
                     <a
                       className="hover:text-[var(--accent)]"
-                      href={`https://solscan.io/account/${w.address}`}
+                      href={`https://jup.ag/portfolio/${w.address}`}
                       target="_blank"
                       rel="noreferrer"
                       title={w.address}
