@@ -179,41 +179,49 @@ export async function getFullLeaderboard(pageSize = 500): Promise<LeaderboardRow
 }
 
 /**
- * Fetch the public referral code record for one wallet.
- * Returns null on any error (404, network, parse) so caller can fall back gracefully.
+ * Fetch the public referral code record for one wallet, tolerating
+ * Cloudflare rate-limit responses (1015) with retry + backoff.
  */
 export async function getReferralUsageCount(address: string): Promise<number | null> {
-  try {
-    type Raw = { usageCount?: number; code?: string };
-    const raw = await getJson<Raw>(
-      `${REWARDS}/api/v1/referrals/code/${address}`,
-      900,
-    );
-    return raw.usageCount ?? 0;
-  } catch {
-    return null;
+  const url = `${REWARDS}/api/v1/referrals/code/${address}`;
+  for (let attempt = 0; attempt < 2; attempt++) {
+    try {
+      const res = await fetch(url, { headers: HEADERS, next: { revalidate: 3600 } });
+      const ct = res.headers.get("content-type") ?? "";
+      // 404 with JSON body = wallet has no referral code on file (treat as 0
+      // referees, since they haven't created a code to be used).
+      if (res.status === 404 && ct.includes("application/json")) return 0;
+      // Cloudflare 1015 returns text/html — back off and retry once.
+      if (!res.ok || !ct.includes("application/json")) {
+        if (attempt === 0) await new Promise((r) => setTimeout(r, 1500));
+        continue;
+      }
+      const data = (await res.json()) as { usageCount?: number };
+      return data.usageCount ?? 0;
+    } catch {
+      if (attempt === 0) await new Promise((r) => setTimeout(r, 1500));
+    }
   }
+  return null;
 }
 
 /**
- * Concurrently fetch usageCount for many addresses. Cache is per-URL
- * via Next.js fetch cache, so re-renders within the revalidate window
- * cost ~nothing.
+ * Serial fan-out with inter-request pacing. OnRe sits behind Cloudflare
+ * with aggressive per-IP burst limits — anything more than ~5 req/s
+ * trips a 1015 page. Each URL is cached for an hour by Next.js fetch
+ * cache, so subsequent renders within that window are free.
  */
 export async function getReferralCountsByAddress(
   addresses: string[],
-  concurrency = 20,
+  delayMs = 150,
 ): Promise<Map<string, number>> {
   const out = new Map<string, number>();
-  for (let i = 0; i < addresses.length; i += concurrency) {
-    const batch = addresses.slice(i, i + concurrency);
-    const settled = await Promise.allSettled(
-      batch.map(async (addr) => [addr, await getReferralUsageCount(addr)] as const),
-    );
-    for (const s of settled) {
-      if (s.status === "fulfilled" && s.value[1] != null) {
-        out.set(s.value[0], s.value[1]);
-      }
+  for (let i = 0; i < addresses.length; i++) {
+    const addr = addresses[i];
+    const v = await getReferralUsageCount(addr);
+    if (v != null) out.set(addr, v);
+    if (i < addresses.length - 1) {
+      await new Promise((r) => setTimeout(r, delayMs));
     }
   }
   return out;
