@@ -11,6 +11,7 @@ import {
   ReferenceLine,
 } from "recharts";
 import type { GrowthPoint } from "@/lib/onre";
+import { ChartMount } from "@/components/chart-mount";
 
 const LOOK_AHEAD_DAYS = 7;
 
@@ -39,7 +40,7 @@ export function PointsChart({
 
   return (
     <div className="card p-4 md:p-6">
-      <div className="h-[300px] w-full">
+      <ChartMount className="h-[300px] w-full">
         <ResponsiveContainer width="100%" height="100%">
           <AreaChart data={data} margin={{ top: 24, right: 28, bottom: 0, left: 0 }}>
             <defs>
@@ -107,7 +108,7 @@ export function PointsChart({
             />
           </AreaChart>
         </ResponsiveContainer>
-      </div>
+      </ChartMount>
     </div>
   );
 }

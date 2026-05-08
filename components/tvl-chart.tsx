@@ -4,6 +4,7 @@ import { useMemo, useState } from "react";
 import { Bar, BarChart, CartesianGrid, ResponsiveContainer, Tooltip, XAxis, YAxis } from "recharts";
 import type { ProtocolKey } from "@/lib/onre";
 import { PROTOCOL_COLORS, PROTOCOL_LABEL } from "@/lib/onre";
+import { ChartMount } from "@/components/chart-mount";
 
 type Row = { date: string } & Partial<Record<ProtocolKey, number>>;
 
@@ -51,7 +52,7 @@ export function TvlChart({ data, protocols }: { data: Row[]; protocols: Protocol
 
   return (
     <div className="card p-4 md:p-6">
-      <div className="h-[360px] w-full">
+      <ChartMount className="h-[360px] w-full">
         <ResponsiveContainer width="100%" height="100%">
           <BarChart data={weekly} margin={{ top: 8, right: 16, bottom: 0, left: 0 }}>
             <CartesianGrid stroke="var(--border)" strokeDasharray="3 4" vertical={false} />
@@ -103,7 +104,7 @@ export function TvlChart({ data, protocols }: { data: Row[]; protocols: Protocol
             ))}
           </BarChart>
         </ResponsiveContainer>
-      </div>
+      </ChartMount>
 
       {/* Interactive legend — single row, scrolls horizontally on narrow screens */}
       <div className="mt-4 flex items-center gap-2 flex-nowrap overflow-x-auto whitespace-nowrap pb-1">

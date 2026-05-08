@@ -2,6 +2,7 @@
 
 import { Bar, BarChart, CartesianGrid, ResponsiveContainer, Tooltip, XAxis, YAxis } from "recharts";
 import type { Bucket } from "@/lib/onre";
+import { ChartMount } from "@/components/chart-mount";
 
 export function BucketsChart({ buckets, totalWallets }: { buckets: Bucket[]; totalWallets: number }) {
   const data = buckets.map((b) => ({
@@ -13,7 +14,7 @@ export function BucketsChart({ buckets, totalWallets }: { buckets: Bucket[]; tot
 
   return (
     <div className="card p-4 md:p-6">
-      <div className="h-[320px] w-full">
+      <ChartMount className="h-[320px] w-full">
         <ResponsiveContainer width="100%" height="100%">
           <BarChart data={data} margin={{ top: 8, right: 16, bottom: 36, left: 8 }}>
             <CartesianGrid stroke="var(--border)" strokeDasharray="3 4" vertical={false} />
@@ -65,7 +66,7 @@ export function BucketsChart({ buckets, totalWallets }: { buckets: Bucket[]; tot
             <Bar dataKey="wallets" fill="var(--accent)" radius={[4, 4, 0, 0]} />
           </BarChart>
         </ResponsiveContainer>
-      </div>
+      </ChartMount>
     </div>
   );
 }

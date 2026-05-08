@@ -3,6 +3,7 @@
 import { Cell, Pie, PieChart, ResponsiveContainer, Tooltip } from "recharts";
 import type { ProtocolKey } from "@/lib/onre";
 import { PROTOCOL_COLORS, PROTOCOL_LABEL } from "@/lib/onre";
+import { ChartMount } from "@/components/chart-mount";
 
 type Slice = { protocol: ProtocolKey; capitalUsd: number; sharePct: number };
 
@@ -14,6 +15,7 @@ export function DistributionDonut({ data, totalUsd }: { data: Slice[]; totalUsd:
         Current distribution
       </div>
       <div className="relative mx-auto h-[200px] w-full max-w-[260px]">
+        <ChartMount className="absolute inset-0">
         <ResponsiveContainer width="100%" height="100%">
           <PieChart>
             <Pie
@@ -49,6 +51,7 @@ export function DistributionDonut({ data, totalUsd }: { data: Slice[]; totalUsd:
             />
           </PieChart>
         </ResponsiveContainer>
+        </ChartMount>
         <div className="absolute inset-0 flex flex-col items-center justify-center pointer-events-none">
           <div className="text-[10px] uppercase tracking-[0.12em] text-[var(--muted)]">TVL</div>
           <div className="numeric text-xl font-semibold mt-0.5">
