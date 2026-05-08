@@ -1,64 +1,185 @@
-import Image from "next/image";
+import { SiteHeader } from "@/components/header";
+import { Section } from "@/components/section";
+import { Kpi } from "@/components/kpi";
+import { TvlChart } from "@/components/tvl-chart";
+import { PointsChart } from "@/components/points-chart";
+import { BucketsChart } from "@/components/buckets";
+import { DistributionDonut } from "@/components/distribution-donut";
+import { WalletsTable, type SlimWallet } from "@/components/wallets-table";
+import {
+  avgDailyGrowth,
+  bucketize,
+  getAumGrowth,
+  getFullLeaderboard,
+  getOverview,
+  getPointsGrowth,
+  pivotAumByDate,
+  tierBreakdown,
+  TIER_COLORS,
+  type ProtocolKey,
+} from "@/lib/onre";
+import { fmtNum, fmtPct, fmtUsd } from "@/lib/format";
 
-export default function Home() {
+export default async function Home() {
+  const [overview, aum, growth, leaderboard] = await Promise.all([
+    getOverview(),
+    getAumGrowth(),
+    getPointsGrowth(),
+    getFullLeaderboard(500),
+  ]);
+
+  const tvl = pivotAumByDate(aum);
+
+  const aum30dAgo = (() => {
+    const dates = [...new Set(aum.map((a) => a.date))].sort();
+    if (dates.length < 30) return null;
+    const targetDate = dates[dates.length - 30];
+    return aum.filter((a) => a.date === targetDate).reduce((s, a) => s + a.aumUsd, 0);
+  })();
+  const aumDelta30d = aum30dAgo ? (overview.totalAumUsd - aum30dAgo) / aum30dAgo : null;
+
+  const dailyGrowth7 = avgDailyGrowth(growth, 7);
+
+  const buckets = bucketize(leaderboard);
+  const tiers = tierBreakdown(leaderboard);
+  // Top wallet share (no Gini)
+  const sortedPts = [...leaderboard.map((r) => r.totalPoints)].sort((a, b) => b - a);
+  const totalPoints = sortedPts.reduce((s, x) => s + x, 0) || 1;
+  const topShare = sortedPts[0] / totalPoints;
+
+  const slimWallets: SlimWallet[] = leaderboard.map((r) => ({
+    rank: r.rank,
+    address: r.address,
+    totalPoints: r.totalPoints,
+  }));
+
+
   return (
-    <div className="flex flex-col flex-1 items-center justify-center bg-zinc-50 font-sans dark:bg-black">
-      <main className="flex flex-1 w-full max-w-3xl flex-col items-center justify-between py-32 px-16 bg-white dark:bg-black sm:items-start">
-        <Image
-          className="dark:invert"
-          src="/next.svg"
-          alt="Next.js logo"
-          width={100}
-          height={20}
-          priority
-        />
-        <div className="flex flex-col items-center gap-6 text-center sm:items-start sm:text-left">
-          <h1 className="max-w-xs text-3xl font-semibold leading-10 tracking-tight text-black dark:text-zinc-50">
-            To get started, edit the page.tsx file.
-          </h1>
-          <p className="max-w-md text-lg leading-8 text-zinc-600 dark:text-zinc-400">
-            Looking for a starting point or more instructions? Head over to{" "}
-            <a
-              href="https://vercel.com/templates?framework=next.js&utm_source=create-next-app&utm_medium=appdir-template-tw&utm_campaign=create-next-app"
-              className="font-medium text-zinc-950 dark:text-zinc-50"
-            >
-              Templates
-            </a>{" "}
-            or the{" "}
-            <a
-              href="https://nextjs.org/learn?utm_source=create-next-app&utm_medium=appdir-template-tw&utm_campaign=create-next-app"
-              className="font-medium text-zinc-950 dark:text-zinc-50"
-            >
-              Learning
-            </a>{" "}
-            center.
-          </p>
+    <div className="flex flex-col flex-1 min-h-screen">
+      <SiteHeader />
+      <main className="relative max-w-7xl mx-auto w-full px-6 py-8">
+        {/* KPIs (no card chrome) */}
+        <div className="grid grid-cols-1 sm:grid-cols-3 gap-x-10 gap-y-2 pb-6 border-b border-[var(--border)]/60">
+          <Kpi
+            label="Total TVL"
+            value={fmtUsd(overview.totalAumUsd, { compact: true })}
+            sub={
+              aumDelta30d != null ? (
+                <>
+                  <span className={aumDelta30d >= 0 ? "text-[var(--positive)]" : "text-[var(--negative)]"}>
+                    {aumDelta30d >= 0 ? "+" : "−"}{fmtPct(Math.abs(aumDelta30d))}
+                  </span>{" "}
+                  vs 30d ago · {overview.activeProtocols} active partners
+                </>
+              ) : (
+                <>{overview.activeProtocols} active partners</>
+              )
+            }
+          />
+          <Kpi
+            label="Total Points"
+            value={fmtNum(overview.totalPointsIssued, { compact: true, digits: 2 })}
+            sub={
+              <>
+                <span className="text-[var(--positive)]">+{fmtNum(dailyGrowth7, { compact: true })}</span>{" "}
+                avg/day · last 7 days
+              </>
+            }
+          />
+          <Kpi
+            label="Wallets"
+            value={fmtNum(overview.walletCount)}
+            sub={
+              <>
+                Top wallet holds{" "}
+                <span className="text-[var(--foreground)]">{fmtPct(topShare, 2)}</span> of all points
+              </>
+            }
+          />
         </div>
-        <div className="flex flex-col gap-4 text-base font-medium sm:flex-row">
-          <a
-            className="flex h-12 w-full items-center justify-center gap-2 rounded-full bg-foreground px-5 text-background transition-colors hover:bg-[#383838] dark:hover:bg-[#ccc] md:w-[158px]"
-            href="https://vercel.com/new?utm_source=create-next-app&utm_medium=appdir-template-tw&utm_campaign=create-next-app"
-            target="_blank"
-            rel="noopener noreferrer"
-          >
-            <Image
-              className="dark:invert"
-              src="/vercel.svg"
-              alt="Vercel logomark"
-              width={16}
-              height={16}
+
+        {/* TVL */}
+        <Section title="TVL by partner" subtitle="Weekly TVL breakdown across all OnRe integrations.">
+          <div className="grid grid-cols-1 lg:grid-cols-3 gap-4">
+            <div className="lg:col-span-2">
+              <TvlChart data={tvl.data} protocols={tvl.protocols} />
+            </div>
+            <DistributionDonut
+              data={overview.distribution.map((d) => ({
+                protocol: d.protocol as ProtocolKey,
+                capitalUsd: d.capitalUsd,
+                sharePct: d.sharePct,
+              }))}
+              totalUsd={overview.totalAumUsd}
             />
-            Deploy Now
-          </a>
-          <a
-            className="flex h-12 w-full items-center justify-center rounded-full border border-solid border-black/[.08] px-5 transition-colors hover:border-transparent hover:bg-black/[.04] dark:border-white/[.145] dark:hover:bg-[#1a1a1a] md:w-[158px]"
-            href="https://nextjs.org/docs?utm_source=create-next-app&utm_medium=appdir-template-tw&utm_campaign=create-next-app"
-            target="_blank"
-            rel="noopener noreferrer"
-          >
-            Documentation
-          </a>
-        </div>
+          </div>
+        </Section>
+
+        {/* POINTS */}
+        <Section title="Points issuance" subtitle="Cumulative points to date plus a 7-day forward look.">
+          <PointsChart
+            series={growth}
+            rate7d={dailyGrowth7}
+            currentTotal={overview.totalPointsIssued}
+          />
+        </Section>
+
+        {/* HOLDER DISTRIBUTION */}
+        <Section
+          title="Holder distribution"
+          subtitle={`How ${fmtNum(overview.walletCount)} wallets are spread across point ranges.`}
+        >
+          <BucketsChart buckets={buckets} totalWallets={overview.walletCount} />
+
+          <div className="mt-4 card p-5 overflow-x-auto">
+            <div className="text-[11px] uppercase tracking-[0.12em] text-[var(--muted)] font-semibold mb-3">
+              Top % breakdown
+            </div>
+            <table className="w-full text-[13px] min-w-[640px]">
+              <thead>
+                <tr className="text-[var(--muted)] text-left">
+                  <th className="font-medium pb-2">Tier</th>
+                  <th className="font-medium pb-2 text-right">Wallets</th>
+                  <th className="font-medium pb-2 text-right">% wallets</th>
+                  <th className="font-medium pb-2 text-right">Points sum</th>
+                  <th className="font-medium pb-2 text-right">% points</th>
+                </tr>
+              </thead>
+              <tbody>
+                {tiers.map((t) => {
+                  const pctW = overview.walletCount ? t.count / overview.walletCount : 0;
+                  const pctP = overview.totalPointsIssued ? t.points / overview.totalPointsIssued : 0;
+                  const color = TIER_COLORS[t.tone];
+                  return (
+                    <tr key={t.label} className="border-t border-[var(--border)]/50">
+                      <td className="py-2">
+                        <span
+                          className="inline-flex items-center px-2 py-0.5 rounded-full text-[11px] font-medium"
+                          style={{
+                            color,
+                            background: `color-mix(in srgb, ${color} 14%, transparent)`,
+                            border: `1px solid color-mix(in srgb, ${color} 35%, transparent)`,
+                          }}
+                        >
+                          {t.label}
+                        </span>
+                      </td>
+                      <td className="py-2 text-right numeric">{fmtNum(t.count)}</td>
+                      <td className="py-2 text-right numeric text-[var(--muted)]">{fmtPct(pctW)}</td>
+                      <td className="py-2 text-right numeric">{fmtNum(t.points, { compact: true, digits: 2 })}</td>
+                      <td className="py-2 text-right numeric text-[var(--muted)]">{fmtPct(pctP)}</td>
+                    </tr>
+                  );
+                })}
+              </tbody>
+            </table>
+          </div>
+        </Section>
+
+        {/* WALLETS TABLE */}
+        <Section title="Wallet directory">
+          <WalletsTable wallets={slimWallets} totalPoints={overview.totalPointsIssued} />
+        </Section>
       </main>
     </div>
   );
