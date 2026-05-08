@@ -2,9 +2,44 @@
 
 import { useMemo, useState } from "react";
 
-export type SlimWallet = { rank: number; address: string; totalPoints: number };
+export type SlimWallet = {
+  rank: number;
+  address: string;
+  totalPoints: number;
+  wallet: number;
+  kamino: number;
+  loopscale: number;
+  exponent: number;
+  orca: number;
+  elemental: number;
+  carrot: number;
+  referralBonus: number;
+};
 
 const PAGE_SIZE = 50;
+
+type VenueKey =
+  | "wallet"
+  | "kamino"
+  | "loopscale"
+  | "exponent"
+  | "orca"
+  | "elemental"
+  | "carrot"
+  | "referralBonus";
+
+type SortKey = "rank" | "address" | "totalPoints" | VenueKey;
+
+const VENUE_COLS: { key: VenueKey; label: string }[] = [
+  { key: "wallet", label: "Wallet" },
+  { key: "kamino", label: "Kamino" },
+  { key: "loopscale", label: "Loopscale" },
+  { key: "exponent", label: "Exponent" },
+  { key: "orca", label: "Orca" },
+  { key: "elemental", label: "Elemental" },
+  { key: "carrot", label: "Carrot" },
+  { key: "referralBonus", label: "Referrals" },
+];
 
 function tierFor(rank: number, total: number): { label: string; tone: "top1" | "top5" | "top10" | "top25" | "top50" | "rest" } {
   if (!total) return { label: "—", tone: "rest" };
@@ -26,9 +61,16 @@ const TIER_COLOR: Record<"top1" | "top5" | "top10" | "top25" | "top50" | "rest",
   rest: "var(--muted-2)",
 };
 
+const fmtNum = (n: number) => {
+  if (!n) return "—";
+  if (n >= 1_000_000) return Intl.NumberFormat("en-US", { notation: "compact", maximumFractionDigits: 2 }).format(n);
+  return Intl.NumberFormat("en-US").format(n);
+};
+
 export function WalletsTable({ wallets, totalPoints }: { wallets: SlimWallet[]; totalPoints: number }) {
   const [query, setQuery] = useState("");
   const [page, setPage] = useState(0);
+  const [sort, setSort] = useState<{ key: SortKey; dir: "asc" | "desc" }>({ key: "rank", dir: "asc" });
 
   const filtered = useMemo(() => {
     const q = query.trim().toLowerCase();
@@ -36,14 +78,46 @@ export function WalletsTable({ wallets, totalPoints }: { wallets: SlimWallet[]; 
     return wallets.filter((w) => w.address.toLowerCase().includes(q) || String(w.rank) === q);
   }, [wallets, query]);
 
-  const pages = Math.max(1, Math.ceil(filtered.length / PAGE_SIZE));
-  const safePage = Math.min(page, pages - 1);
-  const slice = filtered.slice(safePage * PAGE_SIZE, safePage * PAGE_SIZE + PAGE_SIZE);
+  const sorted = useMemo(() => {
+    const arr = [...filtered];
+    const k = sort.key;
+    arr.sort((a, b) => {
+      const av = (a as unknown as Record<string, number | string>)[k];
+      const bv = (b as unknown as Record<string, number | string>)[k];
+      const cmp = typeof av === "number" && typeof bv === "number" ? av - bv : String(av).localeCompare(String(bv));
+      return sort.dir === "asc" ? cmp : -cmp;
+    });
+    return arr;
+  }, [filtered, sort]);
 
-  const fmtNum = (n: number) =>
-    n >= 1_000_000
-      ? Intl.NumberFormat("en-US", { notation: "compact", maximumFractionDigits: 2 }).format(n)
-      : Intl.NumberFormat("en-US").format(n);
+  const pages = Math.max(1, Math.ceil(sorted.length / PAGE_SIZE));
+  const safePage = Math.min(page, pages - 1);
+  const slice = sorted.slice(safePage * PAGE_SIZE, safePage * PAGE_SIZE + PAGE_SIZE);
+
+  const setSortKey = (key: SortKey) => {
+    setSort((s) =>
+      s.key === key
+        ? { key, dir: s.dir === "asc" ? "desc" : "asc" }
+        : { key, dir: key === "address" || key === "rank" ? "asc" : "desc" }
+    );
+    setPage(0);
+  };
+
+  const SortableTh = ({ k, label, align = "left" }: { k: SortKey; label: string; align?: "left" | "right" }) => {
+    const active = sort.key === k;
+    const arrow = !active ? "↕" : sort.dir === "asc" ? "↑" : "↓";
+    return (
+      <th
+        onClick={() => setSortKey(k)}
+        className={`font-medium pb-2 cursor-pointer select-none hover:text-[var(--foreground)] ${align === "right" ? "text-right" : "text-left"}`}
+      >
+        <span className="inline-flex items-center gap-1">
+          {label}
+          <span className={active ? "text-[var(--accent)]" : "text-[var(--muted-2)]"}>{arrow}</span>
+        </span>
+      </th>
+    );
+  };
 
   return (
     <div className="card p-5">
@@ -60,33 +134,46 @@ export function WalletsTable({ wallets, totalPoints }: { wallets: SlimWallet[]; 
       </div>
 
       <div className="overflow-x-auto">
-        <table className="w-full text-[13px] min-w-[560px]">
+        <table className="w-full text-[13px] min-w-[1100px]">
           <thead>
-            <tr className="text-[var(--muted)] text-left">
-              <th className="font-medium pb-2 w-14">#</th>
+            <tr className="text-[var(--muted)]">
+              <SortableTh k="rank" label="#" />
               <th className="font-medium pb-2 w-24">Tier</th>
-              <th className="font-medium pb-2">Address</th>
-              <th className="font-medium pb-2 text-right">Points</th>
-              <th className="font-medium pb-2 text-right w-28">% of total</th>
+              <SortableTh k="address" label="Address" />
+              <SortableTh k="totalPoints" label="Total" align="right" />
+              {VENUE_COLS.map((v) => (
+                <th
+                  key={v.key}
+                  onClick={() => setSortKey(v.key)}
+                  className="font-medium pb-2 cursor-pointer select-none hover:text-[var(--foreground)] text-right"
+                >
+                  <span className="inline-flex items-center gap-1">
+                    {v.label}
+                    <span className={sort.key === v.key ? "text-[var(--accent)]" : "text-[var(--muted-2)]"}>
+                      {sort.key !== v.key ? "↕" : sort.dir === "asc" ? "↑" : "↓"}
+                    </span>
+                  </span>
+                </th>
+              ))}
             </tr>
           </thead>
           <tbody>
             {slice.length === 0 && (
               <tr>
-                <td colSpan={5} className="py-6 text-center text-[var(--muted)]">
+                <td colSpan={12} className="py-6 text-center text-[var(--muted)]">
                   No wallets match.
                 </td>
               </tr>
             )}
             {slice.map((w) => {
-              const pct = totalPoints ? (w.totalPoints / totalPoints) * 100 : 0;
               const tier = tierFor(w.rank, wallets.length);
+              const pct = totalPoints ? (w.totalPoints / totalPoints) * 100 : 0;
               return (
                 <tr key={w.address} className="border-t border-[var(--border)]/50">
                   <td className="py-2 text-[var(--muted)] numeric">{w.rank.toLocaleString()}</td>
                   <td className="py-2">
                     <span
-                      className="inline-flex items-center gap-1.5 px-2 py-0.5 rounded-full text-[11px] font-medium"
+                      className="inline-flex items-center px-2 py-0.5 rounded-full text-[11px] font-medium"
                       style={{
                         color: TIER_COLOR[tier.tone],
                         background: `color-mix(in srgb, ${TIER_COLOR[tier.tone]} 14%, transparent)`,
@@ -98,16 +185,24 @@ export function WalletsTable({ wallets, totalPoints }: { wallets: SlimWallet[]; 
                   </td>
                   <td className="py-2 font-mono text-[12px]">
                     <a
-                      className="hover:text-[var(--accent)] break-all"
+                      className="hover:text-[var(--accent)]"
                       href={`https://solscan.io/account/${w.address}`}
                       target="_blank"
                       rel="noreferrer"
+                      title={w.address}
                     >
-                      {w.address}
+                      {w.address.slice(0, 6)}…{w.address.slice(-6)}
                     </a>
                   </td>
-                  <td className="py-2 text-right numeric">{fmtNum(w.totalPoints)}</td>
-                  <td className="py-2 text-right numeric text-[var(--muted)]">{pct.toFixed(3)}%</td>
+                  <td className="py-2 text-right numeric">
+                    {fmtNum(w.totalPoints)}
+                    <div className="text-[10px] text-[var(--muted-2)] numeric">{pct.toFixed(3)}%</div>
+                  </td>
+                  {VENUE_COLS.map((v) => (
+                    <td key={v.key} className="py-2 text-right numeric text-[var(--muted)]">
+                      {fmtNum(w[v.key])}
+                    </td>
+                  ))}
                 </tr>
               );
             })}

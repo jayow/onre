@@ -210,6 +210,53 @@ export const PROTOCOL_COLORS: Record<ProtocolKey, string> = {
   carrot:    "#F97316",  // orange
 };
 
+// Extended palette for venues that appear in pointsBreakdown but aren't TVL partners.
+export const VENUE_COLORS: Record<string, string> = {
+  ...PROTOCOL_COLORS,
+  ratex: "#FBBF24",
+  carrotLending: "#FB923C",
+  referralBonus: "#F2C140",
+  permissionlessBoost: "#94A3B8",
+};
+
+export function VENUE_LABEL(v: string): string {
+  return (
+    {
+      wallet: "Wallet (HODL)",
+      kamino: "Kamino",
+      loopscale: "Loopscale",
+      exponent: "Exponent",
+      orca: "Orca",
+      elemental: "Elemental",
+      carrot: "Carrot",
+      carrotLending: "Carrot Lending",
+      ratex: "RateX",
+      referralBonus: "Referral bonus",
+      permissionlessBoost: "Permissionless boost",
+    }[v] ?? v
+  );
+}
+
+/** Sum every numeric leaf inside a possibly-nested object. */
+export function sumLeaves(obj: unknown): number {
+  if (typeof obj === "number") return obj;
+  if (obj && typeof obj === "object") {
+    let s = 0;
+    for (const v of Object.values(obj as Record<string, unknown>)) s += sumLeaves(v);
+    return s;
+  }
+  return 0;
+}
+
+export function walletVenueTotals(row: LeaderboardRow): { venue: string; points: number }[] {
+  const out: { venue: string; points: number }[] = [];
+  for (const [k, v] of Object.entries(row.pointsBreakdown ?? {})) {
+    const sum = sumLeaves(v);
+    if (sum > 0) out.push({ venue: k, points: sum });
+  }
+  return out.sort((a, b) => b.points - a.points);
+}
+
 export const PROTOCOL_LABEL: Record<ProtocolKey, string> = {
   kamino: "Kamino",
   loopscale: "Loopscale",
