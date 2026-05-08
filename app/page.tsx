@@ -13,6 +13,7 @@ import {
   getFullLeaderboard,
   getOverview,
   getPointsGrowth,
+  getReferralCountsByAddress,
   pivotAumByDate,
   tierBreakdown,
   TIER_COLORS,
@@ -47,16 +48,23 @@ export default async function Home() {
   const totalPoints = sortedPts.reduce((s, x) => s + x, 0) || 1;
   const topShare = sortedPts[0] / totalPoints;
 
+  const sumLeaves = (o: unknown): number => {
+    if (typeof o === "number") return o;
+    if (o && typeof o === "object") {
+      let s = 0;
+      for (const v of Object.values(o as Record<string, unknown>)) s += sumLeaves(v);
+      return s;
+    }
+    return 0;
+  };
+
+  // Only ask the referrals endpoint about wallets that actually earned referral bonus.
+  const referrerAddrs = leaderboard
+    .filter((r) => sumLeaves((r.pointsBreakdown ?? {}).referralBonus) > 0)
+    .map((r) => r.address);
+  const refCounts = await getReferralCountsByAddress(referrerAddrs);
+
   const slimWallets: SlimWallet[] = leaderboard.map((r) => {
-    const sumLeaves = (o: unknown): number => {
-      if (typeof o === "number") return o;
-      if (o && typeof o === "object") {
-        let s = 0;
-        for (const v of Object.values(o as Record<string, unknown>)) s += sumLeaves(v);
-        return s;
-      }
-      return 0;
-    };
     const b = r.pointsBreakdown ?? {};
     return {
       rank: r.rank,
@@ -70,6 +78,7 @@ export default async function Home() {
       elemental: sumLeaves(b.elemental),
       carrot: sumLeaves(b.carrot),
       referralBonus: sumLeaves(b.referralBonus),
+      referralCount: refCounts.get(r.address) ?? null,
     };
   });
 

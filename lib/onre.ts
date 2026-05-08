@@ -178,6 +178,47 @@ export async function getFullLeaderboard(pageSize = 500): Promise<LeaderboardRow
   return all;
 }
 
+/**
+ * Fetch the public referral code record for one wallet.
+ * Returns null on any error (404, network, parse) so caller can fall back gracefully.
+ */
+export async function getReferralUsageCount(address: string): Promise<number | null> {
+  try {
+    type Raw = { usageCount?: number; code?: string };
+    const raw = await getJson<Raw>(
+      `${REWARDS}/api/v1/referrals/code/${address}`,
+      900,
+    );
+    return raw.usageCount ?? 0;
+  } catch {
+    return null;
+  }
+}
+
+/**
+ * Concurrently fetch usageCount for many addresses. Cache is per-URL
+ * via Next.js fetch cache, so re-renders within the revalidate window
+ * cost ~nothing.
+ */
+export async function getReferralCountsByAddress(
+  addresses: string[],
+  concurrency = 20,
+): Promise<Map<string, number>> {
+  const out = new Map<string, number>();
+  for (let i = 0; i < addresses.length; i += concurrency) {
+    const batch = addresses.slice(i, i + concurrency);
+    const settled = await Promise.allSettled(
+      batch.map(async (addr) => [addr, await getReferralUsageCount(addr)] as const),
+    );
+    for (const s of settled) {
+      if (s.status === "fulfilled" && s.value[1] != null) {
+        out.set(s.value[0], s.value[1]);
+      }
+    }
+  }
+  return out;
+}
+
 export async function getLiveNav(): Promise<number> {
   return Number(await getText(`${CORE}/data/live-nav`));
 }
