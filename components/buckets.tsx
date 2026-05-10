@@ -57,6 +57,7 @@ export function BucketsChart({ buckets, totalWallets }: { buckets: Bucket[]; tot
               cursor={{ fill: "rgba(255,255,255,0.04)" }}
               contentStyle={{ background: "var(--surface-2)", border: "1px solid var(--border)", borderRadius: 10, color: "var(--foreground)", fontSize: 12 }}
               labelStyle={{ color: "var(--muted)" }}
+              itemStyle={{ color: "var(--foreground)" }}
               formatter={(v, name) => {
                 if (String(name) === "wallets")
                   return [`${Intl.NumberFormat("en-US").format(Number(v ?? 0))} wallets`, "Wallets"];

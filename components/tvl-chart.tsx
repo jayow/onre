@@ -88,6 +88,7 @@ export function TvlChart({ data, protocols }: { data: Row[]; protocols: Protocol
                 fontSize: 12,
               }}
               labelStyle={{ color: "var(--muted)" }}
+              itemStyle={{ color: "var(--foreground)" }}
               itemSorter={(item) => -Number(item.value ?? 0)}
               formatter={(v, name) => [
                 Intl.NumberFormat("en-US", {

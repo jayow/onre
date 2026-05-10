@@ -143,6 +143,7 @@ function CumulativeChart({
             fontSize: 12,
           }}
           labelStyle={{ color: "var(--muted)" }}
+          itemStyle={{ color: "var(--foreground)" }}
           formatter={(v, name) => {
             const label = String(name) === "actual" ? "Issued" : "Projection · 7d rate";
             return [Intl.NumberFormat("en-US", { maximumFractionDigits: 0 }).format(Number(v ?? 0)), label];
@@ -214,6 +215,7 @@ function DailyChart({ series }: { series: GrowthPoint[] }) {
             fontSize: 12,
           }}
           labelStyle={{ color: "var(--muted)" }}
+          itemStyle={{ color: "var(--foreground)" }}
           formatter={(v) => [
             `${Intl.NumberFormat("en-US", { maximumFractionDigits: 0 }).format(Number(v ?? 0))} pts`,
             "Issued that day",

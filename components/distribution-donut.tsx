@@ -40,6 +40,8 @@ export function DistributionDonut({ data, totalUsd }: { data: Slice[]; totalUsd:
                 color: "var(--foreground)",
                 fontSize: 12,
               }}
+              itemStyle={{ color: "var(--foreground)" }}
+              labelStyle={{ color: "var(--muted)" }}
               formatter={(v, _name, props) => {
                 const pct = ((Number(v ?? 0) / (totalUsd || 1)) * 100).toFixed(2);
                 const label = PROTOCOL_LABEL[(props as { payload: Slice }).payload.protocol] ?? "";
