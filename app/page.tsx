@@ -42,10 +42,7 @@ export default async function Home() {
 
   const buckets = bucketize(leaderboard);
   const tiers = tierBreakdown(leaderboard);
-  // Top wallet share (no Gini)
-  const sortedPts = [...leaderboard.map((r) => r.totalPoints)].sort((a, b) => b - a);
-  const totalPoints = sortedPts.reduce((s, x) => s + x, 0) || 1;
-  const topShare = sortedPts[0] / totalPoints;
+  const earningWallets = leaderboard.filter((r) => r.totalPoints > 0).length;
 
   const sumLeaves = (o: unknown): number => {
     if (typeof o === "number") return o;
@@ -112,8 +109,11 @@ export default async function Home() {
             value={fmtNum(overview.walletCount)}
             sub={
               <>
-                Top wallet holds{" "}
-                <span className="text-[var(--foreground)]">{fmtPct(topShare, 2)}</span> of all points
+                <span className="text-[var(--foreground)]">{fmtNum(earningWallets)}</span> earning
+                {" "}
+                <span className="text-[var(--muted-2)]">
+                  ({fmtPct(earningWallets / Math.max(1, overview.walletCount), 1)})
+                </span>
               </>
             }
           />
