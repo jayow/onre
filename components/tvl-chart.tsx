@@ -7,6 +7,7 @@ import { PROTOCOL_COLORS, PROTOCOL_LABEL } from "@/lib/onre";
 import { ChartMount } from "@/components/chart-mount";
 
 type Row = { date: string } & Partial<Record<ProtocolKey, number>>;
+type View = "absolute" | "share";
 
 function aggregateWeekly(data: Row[], protocols: ProtocolKey[]): Row[] {
   if (!data.length) return [];
@@ -32,12 +33,32 @@ function aggregateWeekly(data: Row[], protocols: ProtocolKey[]): Row[] {
   return [...buckets.values()].sort((a, b) => (a.date as string).localeCompare(b.date as string));
 }
 
+/** Normalize each row so visible partners' values sum to 100. */
+function toShare(rows: Row[], visible: ProtocolKey[]): Row[] {
+  return rows.map((row) => {
+    const total = visible.reduce((s, p) => s + ((row[p] as number) ?? 0), 0);
+    const out: Row = { date: row.date };
+    if (total > 0) {
+      for (const p of visible) {
+        (out as Record<string, number | string>)[p] = (((row[p] as number) ?? 0) / total) * 100;
+      }
+    }
+    return out;
+  });
+}
+
 export function TvlChart({ data, protocols }: { data: Row[]; protocols: ProtocolKey[] }) {
   const weekly = useMemo(() => aggregateWeekly(data, protocols), [data, protocols]);
   const [hidden, setHidden] = useState<Set<ProtocolKey>>(() => new Set());
+  const [view, setView] = useState<View>("absolute");
 
   const visibleProtos = protocols.filter((p) => !hidden.has(p));
   const allVisible = hidden.size === 0;
+
+  const shareData = useMemo(
+    () => (view === "share" ? toShare(weekly, visibleProtos) : weekly),
+    [weekly, visibleProtos, view],
+  );
 
   const toggle = (p: ProtocolKey) =>
     setHidden((h) => {
@@ -52,9 +73,18 @@ export function TvlChart({ data, protocols }: { data: Row[]; protocols: Protocol
 
   return (
     <div className="card p-4 md:p-6">
+      <div className="flex items-center justify-end mb-3 gap-1">
+        <TabPill active={view === "absolute"} onClick={() => setView("absolute")}>
+          Absolute
+        </TabPill>
+        <TabPill active={view === "share"} onClick={() => setView("share")}>
+          Share %
+        </TabPill>
+      </div>
+
       <ChartMount className="h-[360px] w-full">
         <ResponsiveContainer width="100%" height="100%">
-          <BarChart data={weekly} margin={{ top: 8, right: 16, bottom: 0, left: 0 }}>
+          <BarChart data={shareData} margin={{ top: 8, right: 16, bottom: 0, left: 0 }}>
             <CartesianGrid stroke="var(--border)" strokeDasharray="3 4" vertical={false} />
             <XAxis
               dataKey="date"
@@ -74,8 +104,11 @@ export function TvlChart({ data, protocols }: { data: Row[]; protocols: Protocol
               axisLine={false}
               fontSize={11}
               width={56}
+              domain={view === "share" ? [0, 100] : ["auto", "auto"]}
               tickFormatter={(n: number) =>
-                Intl.NumberFormat("en-US", { notation: "compact", maximumFractionDigits: 0 }).format(n)
+                view === "share"
+                  ? `${n.toFixed(0)}%`
+                  : Intl.NumberFormat("en-US", { notation: "compact", maximumFractionDigits: 0 }).format(n)
               }
             />
             <Tooltip
@@ -91,12 +124,14 @@ export function TvlChart({ data, protocols }: { data: Row[]; protocols: Protocol
               itemStyle={{ color: "var(--foreground)" }}
               itemSorter={(item) => -Number(item.value ?? 0)}
               formatter={(v, name) => [
-                Intl.NumberFormat("en-US", {
-                  notation: "compact",
-                  style: "currency",
-                  currency: "USD",
-                  maximumFractionDigits: 2,
-                }).format(Number(v ?? 0)),
+                view === "share"
+                  ? `${Number(v ?? 0).toFixed(2)}%`
+                  : Intl.NumberFormat("en-US", {
+                      notation: "compact",
+                      style: "currency",
+                      currency: "USD",
+                      maximumFractionDigits: 2,
+                    }).format(Number(v ?? 0)),
                 PROTOCOL_LABEL[String(name) as ProtocolKey] ?? String(name),
               ]}
             />
@@ -148,5 +183,30 @@ export function TvlChart({ data, protocols }: { data: Row[]; protocols: Protocol
         </button>
       </div>
     </div>
+  );
+}
+
+function TabPill({
+  active,
+  onClick,
+  children,
+}: {
+  active: boolean;
+  onClick: () => void;
+  children: React.ReactNode;
+}) {
+  return (
+    <button
+      type="button"
+      onClick={onClick}
+      className="px-2.5 py-1 rounded-full text-[11.5px] border transition-colors"
+      style={{
+        borderColor: active ? "var(--accent)" : "var(--border)",
+        background: active ? "color-mix(in srgb, var(--accent) 14%, transparent)" : "transparent",
+        color: active ? "var(--accent)" : "var(--muted)",
+      }}
+    >
+      {children}
+    </button>
   );
 }
