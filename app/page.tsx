@@ -160,6 +160,7 @@ export default async function Home() {
               <thead>
                 <tr className="text-[var(--muted)] text-left">
                   <th className="font-medium pb-2">Tier</th>
+                  <th className="font-medium pb-2 text-right">Threshold</th>
                   <th className="font-medium pb-2 text-right">Wallets</th>
                   <th className="font-medium pb-2 text-right">% wallets</th>
                   <th className="font-medium pb-2 text-right">Points sum</th>
@@ -185,6 +186,7 @@ export default async function Home() {
                           {t.label}
                         </span>
                       </td>
+                      <td className="py-2 text-right numeric">{fmtNum(t.threshold, { compact: true, digits: 2 })}</td>
                       <td className="py-2 text-right numeric">{fmtNum(t.count)}</td>
                       <td className="py-2 text-right numeric text-[var(--muted)]">{fmtPct(pctW)}</td>
                       <td className="py-2 text-right numeric">{fmtNum(t.points, { compact: true, digits: 2 })}</td>

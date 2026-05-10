@@ -357,6 +357,8 @@ export type Tier = {
   tone: "top1" | "top5" | "top10" | "top25" | "top50" | "rest";
   count: number;
   points: number;
+  /** Minimum points held by any wallet in this tier — i.e. the cutoff to qualify. */
+  threshold: number;
 };
 
 export function tierBreakdown(rows: LeaderboardRow[]): Tier[] {
@@ -380,6 +382,7 @@ export function tierBreakdown(rows: LeaderboardRow[]): Tier[] {
       tone: c.tone,
       count: slice.length,
       points: slice.reduce((s, r) => s + r.totalPoints, 0),
+      threshold: slice.at(-1)?.totalPoints ?? 0,
     });
     prevEnd = end;
   }
