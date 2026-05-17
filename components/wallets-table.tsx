@@ -9,7 +9,8 @@ export type SlimWallet = {
   wallet: number;
   kamino: number;
   loopscale: number;
-  exponent: number;
+  exponentYt: number;
+  exponentLp: number;
   orca: number;
   elemental: number;
   carrot: number;
@@ -22,7 +23,8 @@ type VenueKey =
   | "wallet"
   | "kamino"
   | "loopscale"
-  | "exponent"
+  | "exponentYt"
+  | "exponentLp"
   | "orca"
   | "elemental"
   | "carrot"
@@ -34,7 +36,8 @@ const VENUE_COLS: { key: VenueKey; label: string }[] = [
   { key: "wallet", label: "Wallet" },
   { key: "kamino", label: "Kamino" },
   { key: "loopscale", label: "Loopscale" },
-  { key: "exponent", label: "Exponent" },
+  { key: "exponentYt", label: "Exponent YT" },
+  { key: "exponentLp", label: "Exponent LP" },
   { key: "orca", label: "Orca" },
   { key: "elemental", label: "Elemental" },
   { key: "carrot", label: "Carrot" },

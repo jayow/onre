@@ -6,11 +6,17 @@ import { PointsChart } from "@/components/points-chart";
 import { BucketsChart } from "@/components/buckets";
 import { DistributionDonut } from "@/components/distribution-donut";
 import { WalletsTable, type SlimWallet } from "@/components/wallets-table";
+import { YieldChart } from "@/components/yield-chart";
+import { YieldStatsCard } from "@/components/yield-stats";
 import {
   avgDailyGrowth,
   bucketize,
+  computeYieldSeries,
+  computeYieldStats,
   getAumGrowth,
   getFullLeaderboard,
+  getLiveApy,
+  getNavHistory,
   getOverview,
   getPointsGrowth,
   pivotAumByDate,
@@ -21,12 +27,24 @@ import {
 import { fmtNum, fmtPct, fmtUsd } from "@/lib/format";
 
 export default async function Home() {
-  const [overview, aum, growth, leaderboard] = await Promise.all([
+  const [
+    overview,
+    aum,
+    growth,
+    leaderboard,
+    navHistory,
+    liveApy,
+  ] = await Promise.all([
     getOverview(),
     getAumGrowth(),
     getPointsGrowth(),
     getFullLeaderboard(500),
+    getNavHistory(),
+    getLiveApy(),
   ]);
+
+  const yieldSeries = computeYieldSeries(navHistory);
+  const yieldStats = computeYieldStats(navHistory);
 
   const tvl = pivotAumByDate(aum);
 
@@ -42,7 +60,6 @@ export default async function Home() {
 
   const buckets = bucketize(leaderboard);
   const tiers = tierBreakdown(leaderboard);
-  const earningWallets = leaderboard.filter((r) => r.totalPoints > 0).length;
 
   const sumLeaves = (o: unknown): number => {
     if (typeof o === "number") return o;
@@ -63,7 +80,11 @@ export default async function Home() {
       wallet: sumLeaves(b.wallet),
       kamino: sumLeaves(b.kamino),
       loopscale: sumLeaves(b.loopscale),
-      exponent: sumLeaves(b.exponent),
+      ...(() => {
+        const e = b.exponent as number | { yt?: number; lp?: number } | undefined;
+        if (typeof e === "number") return { exponentYt: e, exponentLp: 0 };
+        return { exponentYt: Number(e?.yt ?? 0), exponentLp: Number(e?.lp ?? 0) };
+      })(),
       orca: sumLeaves(b.orca),
       elemental: sumLeaves(b.elemental),
       carrot: sumLeaves(b.carrot),
@@ -77,7 +98,7 @@ export default async function Home() {
       <SiteHeader />
       <main className="relative max-w-7xl mx-auto w-full px-6 py-8">
         {/* KPIs (no card chrome) */}
-        <div className="grid grid-cols-1 sm:grid-cols-3 gap-x-10 gap-y-2 pb-6 border-b border-[var(--border)]/60">
+        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-x-10 gap-y-4 pb-6 border-b border-[var(--border)]/60">
           <Kpi
             label="Total TVL"
             value={fmtUsd(overview.totalAumUsd, { compact: true })}
@@ -95,6 +116,20 @@ export default async function Home() {
             }
           />
           <Kpi
+            label="Current APY"
+            value={<span className="text-[var(--accent)]">{fmtPct(liveApy)}</span>}
+            sub={
+              yieldStats?.apy30d != null ? (
+                <>
+                  <span className="text-[var(--foreground)]">{fmtPct(yieldStats.apy30d)}</span>{" "}
+                  realized · 30d
+                </>
+              ) : yieldStats ? (
+                <>{fmtPct(yieldStats.lifetimeApy)} lifetime APY</>
+              ) : null
+            }
+          />
+          <Kpi
             label="Total Points"
             value={fmtNum(overview.totalPointsIssued, { compact: true, digits: 2 })}
             sub={
@@ -104,19 +139,7 @@ export default async function Home() {
               </>
             }
           />
-          <Kpi
-            label="Wallets"
-            value={fmtNum(overview.walletCount)}
-            sub={
-              <>
-                <span className="text-[var(--foreground)]">{fmtNum(earningWallets)}</span> earning
-                {" "}
-                <span className="text-[var(--muted-2)]">
-                  ({fmtPct(earningWallets / Math.max(1, overview.walletCount), 1)})
-                </span>
-              </>
-            }
-          />
+          <Kpi label="Wallets" value={fmtNum(overview.walletCount)} />
         </div>
 
         {/* TVL */}
@@ -135,6 +158,21 @@ export default async function Home() {
             />
           </div>
         </Section>
+
+        {/* YIELD */}
+        {yieldStats && (
+          <Section
+            title="Yield"
+            subtitle="Daily NAV growth and rolling annualized yield since inception."
+          >
+            <div className="grid grid-cols-1 lg:grid-cols-3 gap-4">
+              <div className="lg:col-span-2">
+                <YieldChart series={yieldSeries} />
+              </div>
+              <YieldStatsCard stats={yieldStats} />
+            </div>
+          </Section>
+        )}
 
         {/* POINTS */}
         <Section title="Points issuance" subtitle="Cumulative points to date plus a 7-day forward look.">

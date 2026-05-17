@@ -17,7 +17,10 @@ async function getJson<T>(url: string, revalidate = REVALIDATE): Promise<T> {
 }
 
 async function getText(url: string, revalidate = REVALIDATE): Promise<string> {
-  const res = await fetch(url, { headers: HEADERS, next: { revalidate } });
+  const res = await fetch(url, {
+    headers: { ...HEADERS, Accept: "text/plain, */*" },
+    next: { revalidate },
+  });
   if (!res.ok) throw new Error(`fetch ${url} → ${res.status}`);
   return (await res.text()).trim();
 }
@@ -188,6 +191,226 @@ export async function getLiveTvl(): Promise<number> {
 
 export async function getLiveApy(): Promise<number> {
   return Number(await getText(`${CORE}/data/live-apy`));
+}
+
+export const EXPONENT_MARKETS = ["AUG-2025", "JAN-2026", "SEP-2026"] as const;
+export type ExponentMarket = (typeof EXPONENT_MARKETS)[number];
+
+export const EXPONENT_MATURITY: Record<ExponentMarket, string> = {
+  "AUG-2025": "2025-08-31",
+  "JAN-2026": "2026-01-31",
+  "SEP-2026": "2026-09-30",
+};
+
+export type YtBreakdown = {
+  total: number;
+  byMarket: Record<ExponentMarket, number>;
+};
+
+export function walletYtBreakdown(row: LeaderboardRow): YtBreakdown {
+  const exp = (row.pointsBreakdown ?? {}).exponent as
+    | { markets?: Record<string, { yt?: number; lp?: number }> }
+    | undefined;
+  const byMarket = {} as Record<ExponentMarket, number>;
+  let total = 0;
+  for (const m of EXPONENT_MARKETS) {
+    const v = Number(exp?.markets?.[m]?.yt ?? 0);
+    byMarket[m] = v;
+    total += v;
+  }
+  return { total, byMarket };
+}
+
+export type RedemptionSettings = {
+  coolDown: number;            // seconds
+  growthRate: number;
+  initialCapacity: number;
+  maxCapacity: number;
+  maxSharePerRequest: number;  // 0..1
+  startTime: string;           // ISO
+};
+
+export type RedemptionOffer = {
+  counter: number;
+  executedRedemptions: number;
+  requestedRedemptions: number;
+  feeBasisPoints: number;
+  offerAddress: string;
+  redemptionOfferAddress: string;
+  tokenInMint: string;
+  tokenOutMint: string;
+};
+
+export const STABLE_MINTS: Record<string, string> = {
+  EPjFWdd5AufqSSqeM2qN1xzybapC8G4wEGGkZwyTDt1v: "USDC",
+  Es9vMFrzaCERmJfrF4H2FYD4KCoNkY11McCe8BenwNYB: "USDT",
+  "2u1tszSeqZ3qBWF3uNGPFc8TzMk2tdiwknnRMWGWjGWH": "USDG",
+  "5Y8NV33Vv7WbnLfq3zBcKSdYPrk7g2KoiQoe7M2tcxp5": "ONyc",
+};
+
+export const STABLE_COLORS: Record<string, string> = {
+  USDC: "#2775CA",
+  USDT: "#26A17B",
+  USDG: "#F2C140",
+  ONyc: "#A78BFA",
+};
+
+export async function getRedemptionSettings(): Promise<RedemptionSettings> {
+  type Raw = {
+    coolDown: number;
+    growthRate: number | string;
+    initialCapacity: number | string;
+    maxCapacity: number | string;
+    maxSharePerRequest: number | string;
+    startTime: string;
+  };
+  const raw = await getJson<Raw>(`${CORE}/redemption/settings`);
+  return {
+    coolDown: Number(raw.coolDown),
+    growthRate: Number(raw.growthRate),
+    initialCapacity: Number(raw.initialCapacity),
+    maxCapacity: Number(raw.maxCapacity),
+    maxSharePerRequest: Number(raw.maxSharePerRequest),
+    startTime: raw.startTime,
+  };
+}
+
+export async function getRedemptionOffers(): Promise<RedemptionOffer[]> {
+  type Raw = {
+    counter: number;
+    executedRedemptions: number | string;
+    requestedRedemptions: number | string;
+    feeBasisPoints: number;
+    offerAddress: string;
+    redemptionOfferAddress: string;
+    tokenInMint: string;
+    tokenOutMint: string;
+  }[];
+  const raw = await getJson<Raw>(`${CORE}/redemption/offers`);
+  return raw.map((r) => ({
+    counter: r.counter,
+    executedRedemptions: Number(r.executedRedemptions),
+    requestedRedemptions: Number(r.requestedRedemptions),
+    feeBasisPoints: r.feeBasisPoints,
+    offerAddress: r.offerAddress,
+    redemptionOfferAddress: r.redemptionOfferAddress,
+    tokenInMint: r.tokenInMint,
+    tokenOutMint: r.tokenOutMint,
+  }));
+}
+
+export type NavPoint = {
+  date: string;
+  nav: number;
+  aumUsd: number;
+  circulatingSupply: number;
+  fundName: string;
+  fundId: number;
+};
+
+export async function getNavHistory(fundId = 1): Promise<NavPoint[]> {
+  type Raw = {
+    data: {
+      net_asset_value_date: string;
+      net_asset_value: string | number;
+      assets_under_management: string | number;
+      circulating_supply: string | number;
+      fund_name: string;
+      fund_id: number;
+    }[];
+  };
+  const raw = await getJson<Raw>(`${CORE}/data/nav`);
+  const toIso = (mdy: string) => {
+    const [m, d, y] = mdy.split("/");
+    return `${y}-${m.padStart(2, "0")}-${d.padStart(2, "0")}`;
+  };
+  return raw.data
+    .filter((r) => r.fund_id === fundId)
+    .map((r) => ({
+      date: toIso(r.net_asset_value_date),
+      nav: Number(r.net_asset_value),
+      aumUsd: Number(r.assets_under_management),
+      circulatingSupply: Number(r.circulating_supply),
+      fundName: r.fund_name,
+      fundId: r.fund_id,
+    }))
+    .sort((a, b) => a.date.localeCompare(b.date));
+}
+
+export type YieldPoint = {
+  date: string;
+  nav: number;
+  cumulativeReturn: number;
+  apy7d: number | null;
+  apy30d: number | null;
+};
+
+function annualizedFromRange(nav: NavPoint[], i: number, lookback: number): number | null {
+  if (i < lookback) return null;
+  const cur = nav[i].nav;
+  const prev = nav[i - lookback].nav;
+  if (!prev) return null;
+  const daysElapsed =
+    (Date.parse(nav[i].date) - Date.parse(nav[i - lookback].date)) / 86_400_000;
+  if (daysElapsed <= 0) return null;
+  return Math.pow(cur / prev, 365 / daysElapsed) - 1;
+}
+
+export function computeYieldSeries(nav: NavPoint[]): YieldPoint[] {
+  if (!nav.length) return [];
+  const nav0 = nav[0].nav;
+  return nav.map((p, i) => ({
+    date: p.date,
+    nav: p.nav,
+    cumulativeReturn: nav0 ? p.nav / nav0 - 1 : 0,
+    apy7d: annualizedFromRange(nav, i, 7),
+    apy30d: annualizedFromRange(nav, i, 30),
+  }));
+}
+
+export type YieldStats = {
+  inceptionDate: string;
+  inceptionNav: number;
+  currentDate: string;
+  currentNav: number;
+  daysRunning: number;
+  totalReturn: number;
+  lifetimeApy: number;
+  apy30d: number | null;
+  apy7d: number | null;
+  bestDay: { date: string; pct: number } | null;
+  worstDay: { date: string; pct: number } | null;
+};
+
+export function computeYieldStats(nav: NavPoint[]): YieldStats | null {
+  if (nav.length < 2) return null;
+  const first = nav[0];
+  const last = nav[nav.length - 1];
+  const days = (Date.parse(last.date) - Date.parse(first.date)) / 86_400_000;
+  const totalReturn = last.nav / first.nav - 1;
+  const lifetimeApy = days > 0 ? Math.pow(last.nav / first.nav, 365 / days) - 1 : 0;
+  let best: { date: string; pct: number } | null = null;
+  let worst: { date: string; pct: number } | null = null;
+  for (let i = 1; i < nav.length; i++) {
+    const prev = nav[i - 1].nav;
+    if (!prev) continue;
+    const pct = nav[i].nav / prev - 1;
+    if (!best || pct > best.pct) best = { date: nav[i].date, pct };
+    if (!worst || pct < worst.pct) worst = { date: nav[i].date, pct };
+  }
+  return {
+    inceptionDate: first.date,
+    inceptionNav: first.nav,
+    currentDate: last.date,
+    currentNav: last.nav,
+    daysRunning: Math.round(days),
+    totalReturn,
+    lifetimeApy,
+    apy30d: annualizedFromRange(nav, nav.length - 1, 30),
+    apy7d: annualizedFromRange(nav, nav.length - 1, 7),
+    bestDay: best,
+    worstDay: worst,
+  };
 }
 
 // ---------- derived helpers ----------
